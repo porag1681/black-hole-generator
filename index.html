@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Black Hole Generator</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:#050713;
+  color:white;
+  font-family:Arial,sans-serif;
+  overflow-x:hidden;
+}
+header{
+  height:75px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 7%;
+  border-bottom:1px solid #252942;
+  background:#070914;
+}
+.logo{
+  font-size:25px;
+  font-weight:bold;
+}
+.logo span{color:#61d8ff}
+.menu{
+  font-size:30px;
+}
+.hero{
+  text-align:center;
+  padding:55px 20px 25px;
+}
+.badge{
+  display:inline-block;
+  padding:8px 16px;
+  border:1px solid #54cfff;
+  border-radius:30px;
+  color:#72ddff;
+  margin-bottom:18px;
+}
+h1{
+  font-size:clamp(38px,8vw,75px);
+  background:linear-gradient(90deg,#fff,#67dfff,#9d7cff);
+  -webkit-background-clip:text;
+  color:transparent;
+}
+.subtitle{
+  color:#a7abc0;
+  max-width:650px;
+  margin:15px auto;
+  line-height:1.6;
+}
+#stage{
+  width:92%;
+  max-width:1000px;
+  height:520px;
+  margin:25px auto;
+  position:relative;
+  border:1px solid #3a4266;
+  border-radius:25px;
+  overflow:hidden;
+  background:#02030a;
+  box-shadow:0 0 60px #16204d;
+}
+canvas{width:100%;height:100%;display:block}
+#camera{
+  position:absolute;
+  right:18px;
+  top:18px;
+  width:180px;
+  height:135px;
+  object-fit:cover;
+  border-radius:15px;
+  border:2px solid #57dfff;
+  transform:scaleX(-1);
+  opacity:.8;
+}
+.live{
+  position:absolute;
+  top:160px;
+  right:25px;
+  background:#10152a;
+  border:1px solid #ff668c;
+  color:#ff7698;
+  padding:8px 15px;
+  border-radius:25px;
+  font-size:13px;
+}
+.info{
+  width:92%;
+  max-width:1000px;
+  margin:25px auto 70px;
+  padding:30px;
+  border-radius:25px;
+  background:linear-gradient(135deg,#171d45,#25295d);
+}
+.info h2{
+  font-size:32px;
+  margin-bottom:12px;
+}
+.info p{
+  color:#b5b9d0;
+  line-height:1.7;
+}
+.tags{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:20px;
+}
+.tag{
+  padding:9px 15px;
+  border:1px solid #6972c8;
+  border-radius:20px;
+  color:#b5a0ff;
+}
+button{
+  margin-top:25px;
+  padding:15px 28px;
+  border:0;
+  border-radius:30px;
+  background:linear-gradient(90deg,#52d5ff,#9872ff);
+  font-size:17px;
+  font-weight:bold;
+  cursor:pointer;
+}
+#status{
+  position:absolute;
+  left:20px;
+  bottom:18px;
+  color:#72ddff;
+  font-size:13px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo"><span>●</span> AIwith<span>Taha</span></div>
+  <div class="menu">☰</div>
+</header>
+
+<section class="hero">
+  <div class="badge">● LIVE INTERACTIVE</div>
+  <h1>Black Hole Generator</h1>
+  <p class="subtitle">
+    A WebGL particle field that bends, spins and forms a black hole.
+    Move your hand in front of the camera to control it.
+  </p>
+</section>
+
+<div id="stage">
+  <canvas id="scene"></canvas>
+
+  <video id="camera" autoplay playsinline></video>
+
+  <div class="live">● LIVE FEED</div>
+
+  <div id="status">Starting camera...</div>
+</div>
+
+<section class="info">
+  <h2>Black Hole Generator</h2>
+
+  <p>
+    Control the particle field using your hand.
+    Move your hand left or right to rotate the black hole,
+    and move it closer or farther from the camera to change its size.
+  </p>
+
+  <div class="tags">
+    <div class="tag">THREE.JS</div>
+    <div class="tag">WEBGL</div>
+    <div class="tag">HAND TRACKING</div>
+    <div class="tag">PARTICLES</div>
+  </div>
+
+  <button onclick="location.reload()">Restart Experience</button>
+</section>
+
+<script>
+const canvas = document.getElementById("scene");
+const video = document.getElementById("camera");
+const statusText = document.getElementById("status");
+
+const scene = new THREE.Scene();
+
+const camera3D = new THREE.PerspectiveCamera(
+  60,
+  canvas.clientWidth / canvas.clientHeight,
+  0.1,
+  1000
+);
+
+camera3D.position.z = 7;
+
+const renderer = new THREE.WebGLRenderer({
+  canvas:canvas,
+  antialias:true,
+  alpha:true
+});
+
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(canvas.clientWidth,canvas.clientHeight);
+
+const particleCount = 9000;
+const positions = new Float32Array(particleCount*3);
+const colors = new Float32Array(particleCount*3);
+
+for(let i=0;i<particleCount;i++){
+
+  const r = 0.4 + Math.random()*4.3;
+  const angle = Math.random()*Math.PI*2;
+
+  const spiral = angle + r*1.7;
+
+  positions[i*3] =
+    Math.cos(spiral)*r;
+
+  positions[i*3+1] =
+    (Math.random()-0.5)*0.8;
+
+  positions[i*3+2] =
+    Math.sin(spiral)*r;
+
+  colors[i*3] = 0.35 + Math.random()*0.5;
+  colors[i*3+1] = 0.5 + Math.random()*0.5;
+  colors[i*3+2] = 1;
+}
+
+const geometry = new THREE.BufferGeometry();
+
+geometry.setAttribute(
+  "position",
+  new THREE.BufferAttribute(positions,3)
+);
+
+geometry.setAttribute(
+  "color",
+  new THREE.BufferAttribute(colors,3)
+);
+
+const material = new THREE.PointsMaterial({
+  size:0.035,
+  vertexColors:true,
+  transparent:true,
+  opacity:0.9,
+  blending:THREE.AdditiveBlending
+});
+
+const particles = new THREE.Points(
+  geometry,
+  material
+);
+
+scene.add(particles);
+
+const holeGeometry =
+  new THREE.SphereGeometry(0.85,64,64);
+
+const holeMaterial =
+  new THREE.MeshBasicMaterial({
+    color:0x000000
+  });
+
+const blackHole =
+  new THREE.Mesh(
+    holeGeometry,
+    holeMaterial
+  );
+
+scene.add(blackHole);
+
+let handX = 0;
+let handY = 0;
+let handSize = 1;
+
+function animate(){
+
+  requestAnimationFrame(animate);
+
+  particles.rotation.y +=
+    0.002 + handX*0.008;
+
+  particles.rotation.x =
+    handY*0.25;
+
+  const targetScale =
+    0.8 + handSize*1.2;
+
+  particles.scale.x +=
+    (targetScale-particles.scale.x)*0.05;
+
+  particles.scale.y +=
+    (targetScale-particles.scale.y)*0.05;
+
+  particles.scale.z +=
+    (targetScale-particles.scale.z)*0.05;
+
+  renderer.render(scene,camera3D);
+}
+
+animate();
+
+function resize(){
+
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+
+  camera3D.aspect = w/h;
+  camera3D.updateProjectionMatrix();
+
+  renderer.setSize(w,h);
+}
+
+window.addEventListener("resize",resize);
+
+
+/* HAND TRACKING */
+
+const hands = new Hands({
+  locateFile:(file)=>{
+    return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/"+file;
+  }
+});
+
+hands.setOptions({
+  maxNumHands:1,
+  modelComplexity:1,
+  minDetectionConfidence:0.6,
+  minTrackingConfidence:0.6
+});
+
+hands.onResults(results=>{
+
+  if(
+    results.multiHandLandmarks &&
+    results.multiHandLandmarks.length
+  ){
+
+    const hand =
+      results.multiHandLandmarks[0];
+
+    const palm = hand[9];
+
+    handX = (palm.x-0.5)*2;
+    handY = (palm.y-0.5)*2;
+
+    const thumb = hand[4];
+    const index = hand[8];
+
+    const dx = thumb.x-index.x;
+    const dy = thumb.y-index.y;
+
+    const distance =
+      Math.sqrt(dx*dx+dy*dy);
+
+    handSize =
+      Math.min(2,Math.max(0.3,distance*8));
+
+    statusText.innerText =
+      "Hand detected • Move your hand";
+
+  }else{
+
+    statusText.innerText =
+      "Show your hand to the camera";
+  }
+});
+
+
+async function startCamera(){
+
+  try{
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+        video:{
+          facingMode:"user",
+          width:{ideal:640},
+          height:{ideal:480}
+        },
+        audio:false
+      });
+
+    video.srcObject = stream;
+
+    const cam = new Camera(video,{
+      onFrame:async()=>{
+        await hands.send({image:video});
+      },
+      width:640,
+      height:480
+    });
+
+    cam.start();
+
+    statusText.innerText =
+      "Camera ready • Show your hand";
+
+  }catch(error){
+
+    statusText.innerText =
+      "Camera permission required";
+  }
+}
+
+startCamera();
+</script>
+
+</body>
+</html>
