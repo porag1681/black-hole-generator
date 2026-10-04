@@ -1,1 +1,1 @@
-# black-hole-generator
+# black-hole-generatorBlack hole generator
